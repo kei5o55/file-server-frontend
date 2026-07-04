@@ -5,12 +5,16 @@ import { useState } from "react";
 export default function Home() {
   const [items, setItems] = useState([
     { id: 1, type: "text", content: "7月のバイト代でラズパイ5買うぞ！💪", time: "12:34" },
-    { id: 2, type: "image", content: "聖女様のイラスト", url: "https://via.placeholder.com/400x300", time: "13:00" },
+    { id: 2, type: "image", content: "聖女様のイラスト", url: "https://chunithm.sega.jp/storage/chara/chunithm-sun/illustration/s_others_4.webp?_=20260701.190431", time: "13:00" },
   ]);
 
   const [inputText, setInputText] = useState("");
   // スマホ用：メニューの開閉状態を管理
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  const DeteteMessage=()=>{
+    alert("ここに画像アップロード処理を実装するよ！")
+  };
 
   const handleSend = () => {
     if (!inputText.trim()) return;
@@ -75,7 +79,7 @@ export default function Home() {
         {/* メッセージ表示エリア */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {items.map((item) => (
-            <div key={item.id} className="flex flex-col space-y-1 hover:bg-[#2e3035] -mx-4 px-4 py-1 transition group">
+            <div key={item.id} className="relative flex flex-col space-y-1 hover:bg-[#2e3035] -mx-4 px-4 py-1 transition group">
               <div className="flex items-baseline space-x-2">
                 <span className="font-semibold text-white text-sm cursor-pointer hover:underline">
                   kei5ot
@@ -91,7 +95,13 @@ export default function Home() {
                   <div className="p-2 text-xs text-[#949ba4]">{item.content}</div>
                 </div>
               )}
+              
+              <button onClick={DeteteMessage} 
+              className="absolute top-0 right-0 m-2 px-2 py-1 text-base text-[#dbdee1] bg-[#313338] border border-[#232428] rounded shadow-md hover:bg-[#404249] hover:text-red-400 transition-all cursor-pointer 
+              opacity-100 md:opacity-0 md:group-hover:opacity-100">
+              削除</button>
             </div>
+            
           ))}
         </div>
 
