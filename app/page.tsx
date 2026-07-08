@@ -195,6 +195,22 @@ export default function Home() {
               onChange={(e) => setInputText(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSend()}
             />
+            <button 
+              onClick={handleSend}
+              disabled={!inputText.trim()} // 入力が空の時は押せないようにする（親切設計）
+              className={`
+                p-2 rounded-lg transition-all duration-200 cursor-pointer shrink-0
+                ${inputText.trim() 
+                  ? "text-[#23a55a] hover:bg-[#23a55a]/10 hover:scale-105 active:scale-95" 
+                  : "text-[#4e5058] cursor-not-allowed"
+                }
+              `}
+            >
+              {/* 紙飛行機（送信）のスタイリッシュなSVGアイコン */}
+              <svg className="w-6 h-6 transform rotate-45 -translate-x-0.5 translate-y-0.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+              </svg>
+            </button>
           </div>
         </div>
 
