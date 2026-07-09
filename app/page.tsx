@@ -180,8 +180,8 @@ export default function Home() {
               {item.type === "text" ? (
                 <p className="text-sm text-[#dbdee1] leading-relaxed whitespace-pre-wrap">{item.content}</p>
               ) : (
-                <div className="mt-2 max-w-[95%] md:max-w-sm rounded-md overflow-hidden border border-[#2b2d31] bg-[#2b2d31]">
-                  <img src={item.url} alt={item.content} className="w-full h-auto object-cover" />
+                <div className="mt-2 max-w-[95%] md:max-w-sm rounded-md overflow-hidden border border-[#2b2d31] bg-[#2b2d31] cursor-pointer">
+                  <img src={item.url}  onClick={() => window.open(item.url, '_blank')} alt={item.content} className="w-full h-auto object-cover" />
                   <div className="p-2 text-xs text-[#949ba4]">{item.content}</div>
                 </div>
               )}
