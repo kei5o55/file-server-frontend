@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState,useRef } from "react";
 import MessageArea from "../components/messagearea"
-import SideBar from "../components/sidebar"
+import ChannnelBar from "../components/channnelbar"
 
 // 型定義をしておくと今後のRails連携（API）で型安全になります
 interface Channel {
@@ -76,6 +76,14 @@ export default function Home() {
 
   // 現在のチャンネルに紐づくメッセージだけを抽出（今日のノルマの核心！）
   const filteredItems = items.filter(item => item.channelId === activeChannelId);
+
+  const messageRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  const scrollToMessage = (id: number) => {
+    messageRefs.current[id]?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    });
+  };
 
   return (
     <div className="flex h-screen bg-[#313338] text-[#dbdee1] font-sans antialiased overflow-hidden relative">
@@ -156,12 +164,12 @@ export default function Home() {
           </button>
           {/* ↑ ここまで追加 */}
         </div>
-        </div>
+        
 
         {/* メッセージ表示エリア（フィルター済みの配列を表示） */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {filteredItems.map((item) => (
-            <div key={item.id} className="relative flex flex-col space-y-1 hover:bg-[#2e3035] -mx-4 px-4 py-1 transition group">
+            <div ref={(el) => {messageRefs.current[item.id] = el;}}key={item.id} className="relative flex flex-col space-y-1 hover:bg-[#2e3035] -mx-4 px-4 py-1 transition group">
               <div className="flex items-baseline space-x-2">
                 <span className="font-semibold text-white text-sm cursor-pointer hover:underline">
                   kei5ot
@@ -234,6 +242,8 @@ export default function Home() {
             </button>
           </div>
         </div>
+        </div>
+
         {/* 3. 右端：画像一覧バー（トグルで開閉） */}
       <div className={`
         h-full bg-[#2b2d31] border-l border-[#1f2023] flex flex-col shrink-0 transition-all duration-300 ease-in-out
@@ -263,7 +273,8 @@ export default function Home() {
               <div 
                 key={item.id} 
                 className="relative aspect-square rounded overflow-hidden border border-[#1f2023] bg-[#313338] group/thumb cursor-pointer hover:border-[#5865f2] transition"
-                onClick={() => window.open(item.url, '_blank')} // クリックで原寸画像を別タブで開く
+                /*onClick={() => window.open(item.url, '_blank')} // クリックで原寸画像を別タブで開く*/
+                onClick={() => scrollToMessage(item.id)}
                 title={item.content}
               >
                 <img src={item.url} alt={item.content} className="w-full h-full object-cover" />
@@ -279,6 +290,6 @@ export default function Home() {
           )}
         </div>
       </div>
-      </div>
+    </div>
   );
 }
