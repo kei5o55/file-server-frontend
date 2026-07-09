@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import MessageArea from "../components/messagearea"
+import SideBar from "../components/sidebar"
 
 // 型定義をしておくと今後のRails連携（API）で型安全になります
 interface Channel {
