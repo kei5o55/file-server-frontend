@@ -43,7 +43,7 @@ export default function MessageArea({
           </svg>
         </button>
         <span className="text-[#80848e] mr-2">#</span> {currentChannel?.name}
-        
+
         {/* 🔍 ↓ ここから追加：検索バー */}
         <div className="relative flex-1 max-w-[150px] md:max-w-[240px] ml-auto">
           <input
@@ -112,7 +112,7 @@ export default function MessageArea({
             {/* テスト用：常にボタンを表示させる */}
             <button 
             onClick={() => onDeleteMessage(item.id)} 
-            className="absolute top-0 right-0 m-2 px-2 py-1 text-xs text-[#dbdee1] bg-[#313338] border border-[#232428] rounded shadow-md hover:bg-[#404249] hover:text-red-400 transition-all cursor-pointer z-10" 
+            className="absolute top-0 right-0 m-2 px-2 py-1 text-xs text-[#dbdee1] bg-[#313338] border border-[#232428] rounded shadow-md hover hover:bg-[#404249] hover:text-red-400 transition-all cursor-pointer z-10" 
             >
             削除
             </button>

@@ -68,7 +68,7 @@ export default function Home() {
           id: Date.now(),
           channelId: activeChannelId,
           type: "image",
-          content: file.name,
+          content: inputText,
           url: base64Url,
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         },
