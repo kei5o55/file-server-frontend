@@ -53,11 +53,8 @@ export default function Home() {
   };
 
   // 画像ファイル追加（FileReaderを使ったモック）
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    const file = files[0];
+  // 画像ファイルをStateに追加する共通処理
+  const uploadImageFile = (file: File) => {
     const reader = new FileReader();
     reader.onload = (event) => {
       const base64Url = event.target?.result as string;
@@ -68,14 +65,39 @@ export default function Home() {
           id: Date.now(),
           channelId: activeChannelId,
           type: "image",
-          content: inputText,
+          content: file.name,
           url: base64Url,
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         },
       ]);
     };
     reader.readAsDataURL(file);
-    e.target.value = "";
+  };
+
+  // 1. ファイル選択（input type="file"）時のハンドラ
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    uploadImageFile(files[0]);
+    e.target.value = ""; // 同じファイルを連続で選択できるようにリセット
+  };
+
+  // 2. コピペ（Paste）時のハンドラ
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const items = e.clipboardData.items;
+    
+    for (let i = 0; i < items.length; i++) {
+      // 貼り付けられたデータが「画像」かどうかをチェック
+      if (items[i].type.indexOf("image") !== -1) {
+        const file = items[i].getAsFile();
+        if (file) {
+          // デフォルトの貼り付け動作（テキストとしてのペーストなど）を防止
+          e.preventDefault();
+          uploadImageFile(file);
+          break; // 1枚見つかったら処理を抜ける
+        }
+      }
+    }
   };
 
   const currentChannel = channels.find((c) => c.id === activeChannelId);
@@ -123,6 +145,7 @@ export default function Home() {
         setInputText={setInputText}
         onSend={handleSend}
         onFileChange={handleFileChange}
+        onPaste={handlePaste}
         onDeleteMessage={handleDeleteMessage}
         messageRefs={messageRefs}
       />

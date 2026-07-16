@@ -14,6 +14,7 @@ interface MessageAreaProps {
   setInputText: (text: string) => void;
   onSend: () => void;
   onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onPaste: (e: React.ClipboardEvent<HTMLInputElement>) => void;
   onDeleteMessage: (id: number) => void;
   messageRefs: MutableRefObject<Record<number, HTMLDivElement | null>>;
 }
@@ -30,6 +31,7 @@ export default function MessageArea({
   setInputText,
   onSend,
   onFileChange,
+  onPaste,
   onDeleteMessage,
   messageRefs,
 }: MessageAreaProps) {
@@ -146,6 +148,7 @@ export default function MessageArea({
             className="bg-transparent flex-1 focus:outline-none text-base text-[#dbdee1] placeholder-[#80848e] font-medium"
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
+            onPaste={onPaste}
             onKeyDown={(e) => e.key === "Enter" && onSend()}
           />
           <button 
