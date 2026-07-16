@@ -11,6 +11,7 @@ export default function Home() {
     { id: 1, name: "全般・画像保存" },
     { id: 2, name: "テキストメモ" },
   ]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [activeChannelId, setActiveChannelId] = useState<number>(1);
   const [isImageSidebarOpen, setIsImageSidebarOpen] = useState(false);
   const [items, setItems] = useState<MessageItem[]>([
@@ -78,7 +79,14 @@ export default function Home() {
   };
 
   const currentChannel = channels.find((c) => c.id === activeChannelId);
+  // 1. まず現在のチャンネルで絞り込む
   const filteredItems = items.filter((item) => item.channelId === activeChannelId);
+
+  // 2. さらに検索キーワードに一致するものだけを絞り込む（displayedItemsとする）
+  const displayedItems = filteredItems.filter((item) => {
+    if (!searchQuery.trim()) return true; // 検索ワードが空なら全部表示
+    return item.content.toLowerCase().includes(searchQuery.toLowerCase());
+  });
 
   // スクロール参照用のrefとスクロール関数
   const messageRefs = useRef<Record<number, HTMLDivElement | null>>({});
@@ -104,7 +112,9 @@ export default function Home() {
       {/* 2. 中央：メインメッセージ画面 */}
       <MessageArea
         currentChannel={currentChannel}
-        filteredItems={filteredItems}
+        filteredItems={displayedItems} // 👈 ここを displayedItems に変更！
+        searchQuery={searchQuery}       // 👈 追加
+        setSearchQuery={setSearchQuery} // 👈 追加
         isMenuOpen={isMenuOpen}
         setIsMenuOpen={setIsMenuOpen}
         isImageSidebarOpen={isImageSidebarOpen}

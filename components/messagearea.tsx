@@ -4,6 +4,8 @@ import { Channel, MessageItem } from "../logic/types";
 interface MessageAreaProps {
   currentChannel?: Channel;
   filteredItems: MessageItem[];
+  searchQuery: string;               // 👈 追加
+  setSearchQuery: (q: string) => void; // 👈 追加
   isMenuOpen: boolean;
   setIsMenuOpen: (open: boolean) => void;
   isImageSidebarOpen: boolean;
@@ -19,6 +21,8 @@ interface MessageAreaProps {
 export default function MessageArea({
   currentChannel,
   filteredItems,
+  searchQuery,       // 👈 追加
+  setSearchQuery,   // 👈 追加
   setIsMenuOpen,
   isImageSidebarOpen,
   setIsImageSidebarOpen,
@@ -39,6 +43,32 @@ export default function MessageArea({
           </svg>
         </button>
         <span className="text-[#80848e] mr-2">#</span> {currentChannel?.name}
+        
+        {/* 🔍 ↓ ここから追加：検索バー */}
+        <div className="relative flex-1 max-w-[150px] md:max-w-[240px] ml-auto">
+          <input
+            type="text"
+            placeholder="検索"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-[#1e1f22] text-[#dbdee1] placeholder-[#949ba4] text-xs rounded px-2 py-1.5 pr-7 focus:outline-none focus:ring-1 focus:ring-[#5865f2] transition"
+          />
+          {searchQuery ? (
+            // 文字が入っている時は「×」ボタンでクリアできるようにする
+            <button 
+              onClick={() => setSearchQuery("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-[#949ba4] hover:text-white text-xs cursor-pointer"
+            >
+              ✕
+            </button>
+          ) : (
+            // 空の時は虫眼鏡アイコン
+            <svg className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#949ba4]" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          )}
+        </div>
+        {/* 🔍 ↑ ここまで追加 */}
       
         <button 
           onClick={() => setIsImageSidebarOpen(!isImageSidebarOpen)}
