@@ -17,6 +17,7 @@ export default function Home() {
   const [items, setItems] = useState<MessageItem[]>([
     { id: 1, channelId: 1, type: "text", content: "7月のバイト代でラズパイ5買うぞ！💪", time: "12:34" },
     { id: 2, channelId: 1, type: "image", content: "聖女様のイラスト", url: "https://chunithm.sega.jp/storage/chara/chunithm-sun/illustration/s_others_4.webp?_=20260701.190431", time: "13:00" },
+    {id:4,channelId: 1,type:"image",content:"ノワさんのイラスト",url:"https://chunithm.sega.jp/storage/chara/chunithm-mate/illustration/m_3.webp",time:"11:88"},
     { id: 3, channelId: 2, type: "text", content: "ここにRailsのAPI設計メモを書く予定", time: "15:00" },
   ]);
   const [inputText, setInputText] = useState("");
