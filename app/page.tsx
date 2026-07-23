@@ -22,6 +22,9 @@ export default function Home() {
   ]);
   const [inputText, setInputText] = useState("");
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  // 🔴 page.tsx 内の State 定義に追加
+  const [attachedImage, setAttachedImage] = useState<{ url: string; name: string } | null>(null);
+  
 
   // チャンネル作成のモック
   const handleCreateChannel = () => {
@@ -38,39 +41,56 @@ export default function Home() {
   };
 
   // テキストメッセージ送信
+  // 🔴 page.tsx の handleSend を修正
   const handleSend = () => {
-    if (!inputText.trim()) return;
-    setItems([
-      ...items,
-      {
-        id: Date.now(),
-        channelId: activeChannelId,
-        type: "text",
-        content: inputText,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      },
-    ]);
-    setInputText("");
-  };
+    // テキストも画像も無ければ送信しない
+    if (!inputText.trim() && !attachedImage) return;
 
-  // 画像ファイル追加（FileReaderを使ったモック）
-  // 画像ファイルをStateに追加する共通処理。仮実装：現段階ではペースト直後の送信となるため、要修正。
-  const uploadImageFile = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const base64Url = event.target?.result as string;
-
-      setItems((prevItems) => [
-        ...prevItems,
+    // 1. 画像が添付されている場合は画像メッセージを作成
+    if (attachedImage) {
+      setItems((prev) => [
+        ...prev,
         {
           id: Date.now(),
           channelId: activeChannelId,
           type: "image",
-          content: file.name,
-          url: base64Url,
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          content: inputText.trim() || attachedImage.name, // テキストがあればそれを、無ければファイル名をキャプションに
+          url: attachedImage.url,
+          time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         },
       ]);
+    } 
+    // 2. テキストのみの場合は通常テキストメッセージを作成
+    else if (inputText.trim()) {
+      setItems((prev) => [
+        ...prev,
+        {
+          id: Date.now(),
+          channelId: activeChannelId,
+          type: "text",
+          content: inputText.trim(),
+          url: "",
+          time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        },
+      ]);
+    }
+
+    // 送信後にフォームと添付画像をクリア
+    setInputText("");
+    setAttachedImage(null);
+  };
+
+  // 画像ファイル追加（FileReaderを使ったモック）
+  // 🔴 画像ファイルを「送信」せず「一時保存」するように修正
+  const uploadImageFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64Url = event.target?.result as string;
+      // 即時 setItems せず、添付Stateに保持する
+      setAttachedImage({
+        url: base64Url,
+        name: file.name,
+      });
     };
     reader.readAsDataURL(file);
   };
@@ -138,6 +158,8 @@ export default function Home() {
         filteredItems={displayedItems} // 👈 ここを displayedItems に変更！
         searchQuery={searchQuery}       // 👈 追加
         setSearchQuery={setSearchQuery} // 👈 追加
+        attachedImage={attachedImage}
+        onRemoveAttachedImage={() => setAttachedImage(null)}
         isMenuOpen={isMenuOpen}
         setIsMenuOpen={setIsMenuOpen}
         isImageSidebarOpen={isImageSidebarOpen}

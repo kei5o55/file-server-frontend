@@ -7,6 +7,8 @@ interface MessageAreaProps {
   filteredItems: MessageItem[];
   searchQuery: string;               // 👈 追加
   setSearchQuery: (q: string) => void; // 👈 追加
+  attachedImage: { url: string; name: string } | null;
+  onRemoveAttachedImage: () => void;
   isMenuOpen: boolean;
   setIsMenuOpen: (open: boolean) => void;
   isImageSidebarOpen: boolean;
@@ -25,6 +27,8 @@ export default function MessageArea({
   filteredItems,
   searchQuery,       // 👈 追加
   setSearchQuery,   // 👈 追加
+  attachedImage,
+  onRemoveAttachedImage,
   setIsMenuOpen,
   isImageSidebarOpen,
   setIsImageSidebarOpen,
@@ -140,9 +144,41 @@ export default function MessageArea({
         )}
       </div>
 
-      {/* 入力フォーム */}
+{/* 入力フォームエリア */}
       <div className="p-6 bg-[#313338] shrink-0">
-        <div className="flex items-center bg-[#383a40] rounded-xl px-5 py-4 space-x-4">
+        <div className="flex flex-col bg-[#383a40] rounded-xl overflow-hidden">
+          
+          {/* 🖼️ ↓ プレビュー表示エリア（画像が添付されている場合のみ表示） */}
+          {attachedImage && (
+            <div className="p-3 bg-[#2b2d31] border-b border-[#1f2023] flex items-center space-x-3 relative group">
+              <div className="relative w-16 h-16 rounded-md overflow-hidden border border-[#383a40] bg-[#1e1f22] shrink-0">
+                <img 
+                  src={attachedImage.url} 
+                  alt={attachedImage.name} 
+                  className="w-full h-full object-cover" 
+                />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-[#dbdee1] truncate">{attachedImage.name}</p>
+                <p className="text-[10px] text-[#949ba4]">送信準備完了</p>
+              </div>
+              
+              {/* 添付キャンセル（削除）ボタン */}
+              <button
+                onClick={onRemoveAttachedImage}
+                className="p-1 rounded-full bg-[#313338] hover:bg-red-500 text-[#b5bac1] hover:text-white transition cursor-pointer"
+                title="添付を取り消す"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          )}
+          {/* 🖼️ ↑ ここまでプレビューエリア */}
+
+          {/* 入力行 */}
+          <div className="flex items-center px-5 py-4 space-x-4">
           <label className="cursor-pointer text-[#b5bac1] hover:text-[#dbdee1] transition p-1">
             <svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24">
               <path d="M19 11h-6V5a1 1 0 00-2 0v6H5a1 1 0 000 2h6v6a1 1 0 002 0v-6h6a1 1 0 000-2z" />
@@ -155,30 +191,30 @@ export default function MessageArea({
             />
           </label>
 
-          <input
-            type="text"
-            placeholder={`# ${currentChannel?.name} へのメッセージ`}
-            className="bg-transparent flex-1 focus:outline-none text-base text-[#dbdee1] placeholder-[#80848e] font-medium"
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            onPaste={onPaste}
-            onKeyDown={(e) => e.key === "Enter" && onSend()}
-          />
-          <button 
-            onClick={onSend}
-            disabled={!inputText.trim()}
-            className={`
-              p-2 rounded-lg transition-all duration-200 cursor-pointer shrink-0
-              ${inputText.trim() 
-                ? "text-[#23a55a] hover:bg-[#23a55a]/10 hover:scale-105 active:scale-95" 
-                : "text-[#4e5058] cursor-not-allowed"
-              }
-            `}
-          >
-            <svg className="w-6 h-6 transform rotate-45 -translate-x-0.5 translate-y-0.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
-            </svg>
-          </button>
+            <input
+              type="text"
+              placeholder={`# ${currentChannel?.name} へのメッセージ`}
+              className="bg-transparent flex-1 focus:outline-none text-base text-[#dbdee1] placeholder-[#80848e] font-medium min-w-0"
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && onSend()}
+              onPaste={onPaste}
+            />
+
+            {/* 送信ボタン（画像またはテキストがある時にアクティブ化） */}
+            <button
+              onClick={onSend}
+              disabled={!inputText.trim() && !attachedImage}
+              className={`px-4 py-2 rounded-lg font-medium text-sm transition cursor-pointer shrink-0 ${
+                inputText.trim() || attachedImage
+                  ? "bg-[#5865f2] text-white hover:bg-[#4752c4]"
+                  : "bg-[#4e5058] text-[#949ba4] cursor-not-allowed"
+              }`}
+            >
+              送信
+            </button>
+          </div>
+
         </div>
       </div>
     </div>
