@@ -1,6 +1,6 @@
 import { MutableRefObject } from "react";
 import { Channel, MessageItem } from "../logic/types";
-import { useEffect,useRef } from "react";
+import { useState,useEffect,useRef } from "react";
 
 interface MessageAreaProps {
   currentChannel?: Channel;
@@ -20,6 +20,7 @@ interface MessageAreaProps {
   onPaste: (e: React.ClipboardEvent<HTMLInputElement>) => void;
   onDeleteMessage: (id: number) => void;
   messageRefs: MutableRefObject<Record<number, HTMLDivElement | null>>;
+  onDrop: (e: React.DragEvent<HTMLDivElement>) => void;
 }
 
 export default function MessageArea({
@@ -39,7 +40,32 @@ export default function MessageArea({
   onPaste,
   onDeleteMessage,
   messageRefs,
+  onDrop,
 }: MessageAreaProps) {
+  // 🎯 ドラッグ中かどうかのフラグ
+  const [isDragging, setIsDragging] = useState(false);
+
+  // ドラッグ領域に入った時
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isDragging) setIsDragging(true);
+  };
+
+  // ドラッグ領域から外れた時
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // 画面外に出て行った時だけフラグを倒す
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+    setIsDragging(false);
+  };
+
+  // ドロップされた時
+  const handleOnDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    setIsDragging(false);
+    onDrop(e);
+  };
 
     // 📜 1. タイムライン表示エリア用の Ref を作成
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -55,7 +81,28 @@ export default function MessageArea({
   }, [filteredItems]); // filteredItems の中身や件数が変わるたびに実行
 
   return (
-    <div className="flex flex-col flex-1 bg-[#313338] min-w-0 relative">
+    <div 
+      className="flex flex-col flex-1 bg-[#313338] min-w-0 relative"
+      // 🎯 最外枠にドラッグ＆ドロップイベントを設定
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleOnDrop}
+    >
+      {/* 🌟 ドラッグ中のみ表示されるオーバーレイガイド */}
+      {isDragging && (
+        <div className="absolute inset-0 bg-[#5865f2]/20 border-2 border-dashed border-[#5865f2] z-50 flex flex-col items-center justify-center backdrop-blur-[2px] pointer-events-none transition-all">
+          <div className="bg-[#313338] p-6 rounded-2xl shadow-2xl flex flex-col items-center space-y-3 border border-[#383a40]">
+            <div className="p-4 bg-[#5865f2] rounded-full text-white">
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+              </svg>
+            </div>
+            <p className="text-lg font-bold text-[#f2f3f5]">画像をドロップして添付</p>
+            <p className="text-xs text-[#949ba4]"># {currentChannel?.name} に画像を添付します</p>
+          </div>
+        </div>
+      )}
+      
       {/* ヘッダー */}
       <div className="h-12 border-b border-[#1f2023] flex items-center px-2 md:px-4 font-bold text-white shadow-sm shrink-0">
         <button className="md:hidden p-2 text-[#949ba4] hover:text-white mr-1" onClick={() => setIsMenuOpen(true)}>

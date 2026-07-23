@@ -40,6 +40,21 @@ export default function Home() {
     }
   };
 
+  // ドロップ時のハンドラ
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const files = e.dataTransfer.files;
+    if (!files || files.length === 0) return;
+
+    // 1枚目の画像ファイルをチェックして添付処理へ
+    const file = files[0];
+    if (file.type.startsWith("image/")) {
+      uploadImageFile(file);
+    }
+  };
+
   // テキストメッセージ送信
   // 🔴 page.tsx の handleSend を修正
   const handleSend = () => {
@@ -171,6 +186,7 @@ export default function Home() {
         onPaste={handlePaste}
         onDeleteMessage={handleDeleteMessage}
         messageRefs={messageRefs}
+        onDrop={handleDrop}
       />
 
       {/* 3. 右側：画像一覧バー */}
