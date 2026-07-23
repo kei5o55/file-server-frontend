@@ -53,7 +53,7 @@ export default function Home() {
   };
 
   // 画像ファイル追加（FileReaderを使ったモック）
-  // 画像ファイルをStateに追加する共通処理
+  // 画像ファイルをStateに追加する共通処理。仮実装：現段階ではペースト直後の送信となるため、要修正。
   const uploadImageFile = (file: File) => {
     const reader = new FileReader();
     reader.onload = (event) => {

@@ -1,5 +1,6 @@
 import { MutableRefObject } from "react";
 import { Channel, MessageItem } from "../logic/types";
+import { useEffect,useRef } from "react";
 
 interface MessageAreaProps {
   currentChannel?: Channel;
@@ -35,6 +36,20 @@ export default function MessageArea({
   onDeleteMessage,
   messageRefs,
 }: MessageAreaProps) {
+
+    // 📜 1. タイムライン表示エリア用の Ref を作成
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // 📜 2. メッセージ一覧（filteredItems）が更新されたら自動で一番下までスクロール
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior: "smooth", // 👈 スッと滑らかにスクロール（一瞬で飛ばしたい場合は "auto"）
+      });
+    }
+  }, [filteredItems]); // filteredItems の中身や件数が変わるたびに実行
+
   return (
     <div className="flex flex-col flex-1 bg-[#313338] min-w-0 relative">
       {/* ヘッダー */}
@@ -46,7 +61,7 @@ export default function MessageArea({
         </button>
         <span className="text-[#80848e] mr-2">#</span> {currentChannel?.name}
 
-        {/* 🔍 ↓ ここから追加：検索バー */}
+        {/* 検索バー */}
         <div className="relative flex-1 max-w-[150px] md:max-w-[240px] ml-auto">
           <input
             type="text"
@@ -70,7 +85,6 @@ export default function MessageArea({
             </svg>
           )}
         </div>
-        {/* 🔍 ↑ ここまで追加 */}
       
         <button 
           onClick={() => setIsImageSidebarOpen(!isImageSidebarOpen)}
@@ -86,12 +100,11 @@ export default function MessageArea({
       </div>
 
       {/* メッセージ表示エリア */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4">
         {filteredItems.map((item) => (
             <div 
             ref={(el) => { messageRefs.current[item.id] = el; }}
             key={item.id} 
-            // 👇 `-mx-4` を削除し、`w-full px-2` に変更
             className="relative flex flex-col space-y-1 hover:bg-[#2e3035] px-2 py-1 transition group w-full"
             >
             <div className="flex items-baseline space-x-2">
