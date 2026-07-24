@@ -21,6 +21,9 @@ interface MessageAreaProps {
   onDeleteMessage: (id: number) => void;
   messageRefs: MutableRefObject<Record<number, HTMLDivElement | null>>;
   onDrop: (e: React.DragEvent<HTMLDivElement>) => void;
+  attachedTags: string[];
+  onAddTag: (tag: string) => void;
+  onRemoveTag: (tag: string) => void;
 }
 
 export default function MessageArea({
@@ -41,9 +44,25 @@ export default function MessageArea({
   onDeleteMessage,
   messageRefs,
   onDrop,
+  attachedTags,
+  onAddTag,
+  onRemoveTag,
 }: MessageAreaProps) {
   // 🎯 ドラッグ中かどうかのフラグ
   const [isDragging, setIsDragging] = useState(false);
+  // タグ入力欄用のState
+  const [tagInput, setTagInput] = useState("");
+
+  const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      if (tagInput.trim()) {
+        onAddTag(tagInput);
+        setTagInput("");
+      }
+    }
+  };
+  
 
   // ドラッグ領域に入った時
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -173,6 +192,21 @@ export default function MessageArea({
                 <div className="p-2 text-xs text-[#949ba4]">{item.content}</div>
                 </div>
             )}
+            {/* 🏷️ ↓ メッセージに付けられたタグ一覧表示 */}
+            {item.tags && item.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-1.5">
+                {item.tags.map((tag, idx) => (
+                  <span 
+                    key={idx} 
+                    onClick={() => setSearchQuery(`#${tag}`)} // 👈 クリックすると即座にそのタグで絞り込める！
+                    className="inline-flex items-center text-[11px] font-medium text-[#5865f2] bg-[#5865f2]/10 hover:bg-[#5865f2]/20 px-2 py-0.5 rounded transition cursor-pointer"
+                  >
+                    #{tag}
+                  </span>
+                ))}
+              </div>
+            )}
+            {/* 🏷️ ↑ ここまで */}
             
             {/* 削除ボタン（opacityは元のホバー仕様に戻す） */}
             {/* テスト用：常にボタンを表示させる */}
@@ -189,6 +223,7 @@ export default function MessageArea({
             メッセージはまだありません。最初のメッセージを送信してみましょう！
           </div>
         )}
+        
       </div>
 
 {/* 入力フォームエリア */}
@@ -223,6 +258,38 @@ export default function MessageArea({
             </div>
           )}
           {/* 🖼️ ↑ ここまでプレビューエリア */}
+          
+          {/* 🏷️ ↓ 添付中タグのバッジ＆タグ追加インプット */}
+          <div className="px-5 pt-3 flex flex-wrap items-center gap-2">
+            {attachedTags.map((tag) => (
+              <span 
+                key={tag} 
+                className="inline-flex items-center space-x-1 text-xs font-semibold text-white bg-[#5865f2] px-2 py-1 rounded-md"
+              >
+                <span>#{tag}</span>
+                <button 
+                  onClick={() => onRemoveTag(tag)}
+                  className="hover:text-red-300 ml-1 cursor-pointer"
+                >
+                  ✕
+                </button>
+              </span>
+            ))}
+
+            {/* タグ入力インプット */}
+            <div className="flex items-center text-xs text-[#949ba4]">
+              <span className="mr-1">#</span>
+              <input
+                type="text"
+                placeholder="タグを追加 (Enterで確定)"
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={handleTagKeyDown}
+                className="bg-transparent text-xs text-[#dbdee1] placeholder-[#80848e] focus:outline-none w-36"
+              />
+            </div>
+          </div>
+          {/* 🏷️ ↑ ここまで */}
 
           {/* 入力行 */}
           <div className="flex items-center px-5 py-4 space-x-4">

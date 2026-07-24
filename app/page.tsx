@@ -17,13 +17,26 @@ export default function Home() {
   const [items, setItems] = useState<MessageItem[]>([
     { id: 1, channelId: 1, type: "text", content: "7月のバイト代でラズパイ5買うぞ！💪", time: "12:34" },
     { id: 2, channelId: 1, type: "image", content: "聖女様のイラスト", url: "https://chunithm.sega.jp/storage/chara/chunithm-sun/illustration/s_others_4.webp?_=20260701.190431", time: "13:00" },
-    {id:4,channelId: 1,type:"image",content:"ノワさんのイラスト",url:"https://chunithm.sega.jp/storage/chara/chunithm-mate/illustration/m_3.webp",time:"11:88"},
+    {id:4,channelId: 1,type:"image",content:"ノワさんのイラスト",url:"https://chunithm.sega.jp/storage/chara/chunithm-mate/illustration/m_3.webp",time:"11:88",tags:["illust"]},
     { id: 3, channelId: 2, type: "text", content: "ここにRailsのAPI設計メモを書く予定", time: "15:00" },
   ]);
   const [inputText, setInputText] = useState("");
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  // 🔴 page.tsx 内の State 定義に追加
+  const [attachedTags, setAttachedTags] = useState<string[]>([]);//tagに関するstate
   const [attachedImage, setAttachedImage] = useState<{ url: string; name: string } | null>(null);
+
+  // タグを追加する関数
+  const handleAddTag = (tag: string) => {
+    const formattedTag = tag.trim().replace(/^#/, ""); // 先頭の # を除去して統一
+    if (formattedTag && !attachedTags.includes(formattedTag)) {
+      setAttachedTags((prev) => [...prev, formattedTag]);
+    }
+  };
+
+  // タグを削除する関数
+  const handleRemoveTag = (tagToRemove: string) => {
+    setAttachedTags((prev) => prev.filter((t) => t !== tagToRemove));
+  };
   
 
   // チャンネル作成のモック
@@ -56,12 +69,12 @@ export default function Home() {
   };
 
   // テキストメッセージ送信
-  // 🔴 page.tsx の handleSend を修正
+  // 🔴 handleSend を修正（tagsをセットし、送信後にリセット）
   const handleSend = () => {
-    // テキストも画像も無ければ送信しない
     if (!inputText.trim() && !attachedImage) return;
 
-    // 1. 画像が添付されている場合は画像メッセージを作成
+    const newTags = attachedTags.length > 0 ? attachedTags : undefined;
+
     if (attachedImage) {
       setItems((prev) => [
         ...prev,
@@ -69,14 +82,13 @@ export default function Home() {
           id: Date.now(),
           channelId: activeChannelId,
           type: "image",
-          content: inputText.trim() || attachedImage.name, // テキストがあればそれを、無ければファイル名をキャプションに
+          content: inputText.trim() || attachedImage.name,
           url: attachedImage.url,
           time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          tags: newTags, // 👈 タグを追加
         },
       ]);
-    } 
-    // 2. テキストのみの場合は通常テキストメッセージを作成
-    else if (inputText.trim()) {
+    } else if (inputText.trim()) {
       setItems((prev) => [
         ...prev,
         {
@@ -86,13 +98,15 @@ export default function Home() {
           content: inputText.trim(),
           url: "",
           time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          tags: newTags, // 👈 タグを追加
         },
       ]);
     }
 
-    // 送信後にフォームと添付画像をクリア
+    // リセット
     setInputText("");
     setAttachedImage(null);
+    setAttachedTags([]); // 👈 送信後にタグ領域をクリア
   };
 
   // 画像ファイル追加（FileReaderを使ったモック）
@@ -142,8 +156,15 @@ export default function Home() {
 
   // 2. さらに検索キーワードに一致するものだけを絞り込む（displayedItemsとする）
   const displayedItems = filteredItems.filter((item) => {
-    if (!searchQuery.trim()) return true; // 検索ワードが空なら全部表示
-    return item.content.toLowerCase().includes(searchQuery.toLowerCase());
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase().replace(/^#/, ""); // #が付いていても検索できるように
+
+    // 1. 本文にマッチするか
+    const matchesContent = item.content.toLowerCase().includes(q);
+    // 2. タグのいずれかにマッチするか
+    const matchesTag = item.tags?.some((t) => t.toLowerCase().includes(q));
+
+    return matchesContent || matchesTag;
   });
 
   // スクロール参照用のrefとスクロール関数
@@ -187,6 +208,9 @@ export default function Home() {
         onDeleteMessage={handleDeleteMessage}
         messageRefs={messageRefs}
         onDrop={handleDrop}
+        attachedTags={attachedTags}
+        onAddTag={handleAddTag}
+        onRemoveTag={handleRemoveTag}
       />
 
       {/* 3. 右側：画像一覧バー */}
