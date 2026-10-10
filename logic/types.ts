@@ -8,8 +8,8 @@ export interface MessageItem {
   channelId: number; // どのチャンネルに属しているか
   type: "text" | "image";
   content: string;
-  //url?: string[];ってしたい
-  url?: string;//画像
+  url?: string;    // 後方互換（バックエンドからの単一画像）
+  urls?: string[]; // 複数画像URL（最大4枚）
   time: string;
   tags?: string[]; //複数タグを保持する配列
   isEdited?:boolean;

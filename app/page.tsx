@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createConsumer, Consumer } from "@rails/actioncable";
 import ChannnelBar from "../components/channnelbar";
-import MessageArea from "../components/messagearea";
+import MessageArea, { type MessageAreaHandle } from "../components/messagearea";
 import PictureBar from "../components/picturebar";
 import WarnConfirm from "@/components/WarnConfrim";
 import { Channel, MessageItem } from "../logic/types";
@@ -44,10 +44,10 @@ export default function Home() {
   
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [attachedTags, setAttachedTags] = useState<string[]>([]);
-  // 画像添付用 (Fileオブジェクト保持)
-  const [attachedImageFile, setAttachedImageFile] = useState<File | null>(null);
+  // 画像添付用 (Fileオブジェクト保持、最大4枚)
+  const [attachedImageFiles, setAttachedImageFiles] = useState<File[]>([]);
   // 画像プレビュー表示用
-  const [attachedImagePreview, setAttachedImagePreview] = useState<{ url: string; name: string } | null>(null);
+  const [attachedImagePreviews, setAttachedImagePreviews] = useState<{ url: string; name: string }[]>([]);
 
   // 1. バックエンドからチャンネル一覧を取得
   useEffect(() => {
@@ -124,15 +124,13 @@ export default function Home() {
     setAttachedTags((prev) => prev.filter((t) => t !== tagToRemove));
   };
 
-  // 画像選択時のアタッチ処理 (Fileを直接保持する)
-  const uploadImageFile = (file: File) => {
-    setAttachedImageFile(file);
+  // 画像を1枚追加する（最大4枚。超えた分は無視）
+  const addImageFile = (file: File) => {
     const reader = new FileReader();
     reader.onload = (event) => {
-      setAttachedImagePreview({
-        url: event.target?.result as string,
-        name: file.name,
-      });
+      const previewUrl = event.target?.result as string;
+      setAttachedImageFiles((prev) => prev.length >= 4 ? prev : [...prev, file]);
+      setAttachedImagePreviews((prev) => prev.length >= 4 ? prev : [...prev, { url: previewUrl, name: file.name }]);
     };
     reader.readAsDataURL(file);
   };
@@ -140,7 +138,7 @@ export default function Home() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    uploadImageFile(files[0]);
+    Array.from(files).forEach(addImageFile);
     e.target.value = "";
   };
 
@@ -151,7 +149,7 @@ export default function Home() {
         const file = pasteItems[i].getAsFile();
         if (file) {
           e.preventDefault();
-          uploadImageFile(file);
+          addImageFile(file);
           break;
         }
       }
@@ -162,22 +160,22 @@ export default function Home() {
     e.preventDefault();
     e.stopPropagation();
     const files = e.dataTransfer.files;
-    if (files && files.length > 0 && files[0].type.startsWith("image/")) {
-      uploadImageFile(files[0]);
+    if (files && files.length > 0) {
+      Array.from(files).filter((f) => f.type.startsWith("image/")).forEach(addImageFile);
     }
   };
 
   // 3. バックエンドへの送信処理 (FormData 使用)
   const handleSend = async () => {
-    if (!inputText.trim() && !attachedImageFile) return;
+    if (!inputText.trim() && attachedImageFiles.length === 0) return;
 
     const formData = new FormData();
     formData.append("content", inputText.trim());
-    formData.append("type", attachedImageFile ? "image" : "text");
+    formData.append("type", attachedImageFiles.length > 0 ? "image" : "text");
 
-    if (attachedImageFile) {
-      formData.append("image", attachedImageFile);
-    }
+    attachedImageFiles.forEach((file) => {
+      formData.append("images[]", file);
+    });
 
     attachedTags.forEach((tag) => {
       formData.append("tags[]", tag);
@@ -194,8 +192,8 @@ export default function Home() {
 
       if (res.ok) {
         setInputText("");
-        setAttachedImageFile(null);
-        setAttachedImagePreview(null);
+        setAttachedImageFiles([]);
+        setAttachedImagePreviews([]);
         setAttachedTags([]);
       } else {
         const errorData = await res.json();
@@ -221,26 +219,35 @@ export default function Home() {
     });
   };
 
-  /*const handleDeleteChannel = (id: number) => {
-    setDeleteTarget({
-      type: "channel",
-      id,
-    });
-  };*/
+  const handleDeleteChannel = (id: number) => {
+    setDeleteTarget({ type: "channel", id });
+  };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (!deleteTarget) return;
 
     if (deleteTarget.type === "message") {
-      setItems((prev) =>
-        prev.filter((item) => item.id !== deleteTarget.id)
-      );
+      setItems((prev) => prev.filter((item) => item.id !== deleteTarget.id));
     }
 
     if (deleteTarget.type === "channel") {
-      setChannels((prev) =>
-        prev.filter((channel) => channel.id !== deleteTarget.id)
-      );
+      const id = deleteTarget.id;
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/v1/channels/${id}`, {
+          method: "DELETE",
+        });
+        if (res.ok) {
+          setChannels((prev) => prev.filter((c) => c.id !== id));
+          if (activeChannelId === id) {
+            const remaining = channels.filter((c) => c.id !== id);
+            setActiveChannelId(remaining.length > 0 ? remaining[0].id : null);
+          }
+        } else {
+          console.error("Channel delete failed:", await res.json());
+        }
+      } catch (err) {
+        console.error("Channel delete error:", err);
+      }
     }
 
     setDeleteTarget(null);
@@ -282,12 +289,9 @@ export default function Home() {
     return matchesContent || matchesTag;
   });
 
-  const messageRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  const messageAreaRef = useRef<MessageAreaHandle>(null);
   const scrollToMessage = (id: number) => {
-    messageRefs.current[id]?.scrollIntoView({
-      behavior: "smooth",
-      block: "center",
-    });
+    messageAreaRef.current?.scrollToMessage(id);
   };
 
   return (
@@ -299,17 +303,19 @@ export default function Home() {
         isMenuOpen={isMenuOpen}
         setIsMenuOpen={setIsMenuOpen}
         onCreateChannel={handleCreateChannel}
+        onDeleteChannel={handleDeleteChannel}
       />
 
       <MessageArea
+        ref={messageAreaRef}
         currentChannel={currentChannel}
         filteredItems={displayedItems}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
-        attachedImage={attachedImagePreview}
-        onRemoveAttachedImage={() => {
-          setAttachedImageFile(null);
-          setAttachedImagePreview(null);
+        attachedImages={attachedImagePreviews}
+        onRemoveAttachedImage={(index) => {
+          setAttachedImageFiles((prev) => prev.filter((_, i) => i !== index));
+          setAttachedImagePreviews((prev) => prev.filter((_, i) => i !== index));
         }}
         isMenuOpen={isMenuOpen}
         setIsMenuOpen={setIsMenuOpen}
@@ -321,7 +327,6 @@ export default function Home() {
         onFileChange={handleFileChange}
         onPaste={handlePaste}
         onDeleteMessage={handleDeleteMessage}
-        messageRefs={messageRefs}
         onDrop={handleDrop}
         attachedTags={attachedTags}
         onAddTag={handleAddTag}

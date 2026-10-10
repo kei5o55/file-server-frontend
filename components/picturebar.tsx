@@ -10,26 +10,33 @@ interface PictureBarProps {
 }
 
 // 1. 各画像サムネイルの再描画を抑えるメモ化コンポーネント
+interface PictureEntry {
+  messageId: number;
+  url: string;
+  content: string;
+}
+
 interface PictureCardProps {
-  item: MessageItem;
+  entry: PictureEntry;
   onScrollToMessage: (id: number) => void;
 }
 
-const PictureCard = memo(({ item, onScrollToMessage }: PictureCardProps) => {
+const PictureCard = memo(({ entry, onScrollToMessage }: PictureCardProps) => {
   return (
     <div
       className="relative aspect-square rounded overflow-hidden border border-[#1f2023] bg-[#313338] group/thumb cursor-pointer hover:border-[#5865f2] active:border-[#5865f2] transition touch-manipulation"
-      onClick={() => onScrollToMessage(item.id)}
-      title={item.content}
+      onClick={() => onScrollToMessage(entry.messageId)}
+      title={entry.content}
     >
       <Image
-        src={item.url??""}
-        alt={item.content}
+        src={entry.url}
+        alt={entry.content}
+        fill
         className="w-full h-full object-cover"
         loading="lazy"
       />
       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/thumb:opacity-100 transition flex items-end p-1">
-        <span className="text-[10px] text-[#dbdee1] truncate w-full">{item.content}</span>
+        <span className="text-[10px] text-[#dbdee1] truncate w-full">{entry.content}</span>
       </div>
     </div>
   );
@@ -43,34 +50,41 @@ function PictureBar({
   setIsImageSidebarOpen,
   onScrollToMessage,
 }: PictureBarProps) {
-  // filteredItems が変更されたときのみ画像メッセージのみを抽出
-  const images = useMemo(() => {
-    return filteredItems.filter((item) => item.type === "image" && item.url);
+  // 画像メッセージから url / urls を展開してフラットなリストを生成
+  const images = useMemo((): PictureEntry[] => {
+    const result: PictureEntry[] = [];
+    filteredItems.forEach((item) => {
+      if (item.type === "image") {
+        const urls = item.urls ?? (item.url ? [item.url] : []);
+        urls.forEach((url) => result.push({ messageId: item.id, url, content: item.content }));
+      }
+    });
+    return result;
   }, [filteredItems]);
 
   return (
     <>
-      {/* 🌟 スマホ用バックドロップ（暗い背景） */}
+      {/* スマホ用バックドロップ（暗い背景） */}
       {isImageSidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/60 z-40 md:hidden backdrop-blur-sm transition-opacity"
+          className="fixed inset-0 bg-black/60 z-40 md:hidden"
           onClick={() => setIsImageSidebarOpen(false)}
         />
       )}
 
-      {/* 🌟 サイドバー本体 */}
+      {/* サイドバー本体 */}
+      {/* モバイル: translate-x アニメーション（GPU合成のみ、reflow なし）  */}
+      {/* デスクトップ: アニメーションなしで即時切替 */}
       <div
         className={`
-          h-full bg-[#2b2d31] border-l border-[#1f2023] flex flex-col shrink-0 transition-all duration-300 ease-in-out z-50 md:z-auto
-          
-          /* スマホ（md未満）の配置：画面右側に固定ドロワーとして表示 */
+          h-full bg-[#2b2d31] flex flex-col shrink-0 z-50
           fixed md:relative right-0 top-0 bottom-0
-          
-          /* 表示・非表示の切替スタイル */
+          w-[85vw] sm:w-80
+          transition-transform duration-300 ease-in-out md:transition-none
           ${
             isImageSidebarOpen
-              ? "w-[85vw] sm:w-80 md:w-64 opacity-100 shadow-2xl md:shadow-none"
-              : "w-0 opacity-0 overflow-hidden border-l-0"
+              ? "translate-x-0 border-l border-[#1f2023] shadow-2xl md:shadow-none md:w-64"
+              : "translate-x-full md:translate-x-0 md:w-0 md:overflow-hidden"
           }
         `}
       >
@@ -93,10 +107,10 @@ function PictureBar({
 
         {/* 画像グリッドエリア */}
         <div className="flex-1 overflow-y-auto p-3 grid grid-cols-2 gap-2 content-start">
-          {images.map((item) => (
+          {images.map((entry, i) => (
             <PictureCard
-              key={item.id}
-              item={item}
+              key={`${entry.messageId}-${i}`}
+              entry={entry}
               onScrollToMessage={onScrollToMessage}
             />
           ))}

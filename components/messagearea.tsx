@@ -1,14 +1,18 @@
-import { MutableRefObject, useState, useEffect, useLayoutEffect, useRef, useMemo, memo } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, memo, forwardRef, useImperativeHandle } from "react";
 import { Channel, MessageItem } from "../logic/types";
 import Image from "next/image"
+
+export interface MessageAreaHandle {
+  scrollToMessage: (id: number) => void;
+}
 
 interface MessageAreaProps {
   currentChannel?: Channel;
   filteredItems: MessageItem[];
   searchQuery: string;
   setSearchQuery: (q: string) => void;
-  attachedImage: { url: string; name: string } | null;
-  onRemoveAttachedImage: () => void;
+  attachedImages: { url: string; name: string }[];
+  onRemoveAttachedImage: (index: number) => void;
   isMenuOpen: boolean;
   setIsMenuOpen: (open: boolean) => void;
   isImageSidebarOpen: boolean;
@@ -19,7 +23,6 @@ interface MessageAreaProps {
   onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onPaste: (e: React.ClipboardEvent<HTMLInputElement>) => void;
   onDeleteMessage: (id: number) => void;
-  messageRefs: MutableRefObject<Record<number, HTMLDivElement | null>>;
   onDrop: (e: React.DragEvent<HTMLDivElement>) => void;
   attachedTags: string[];
   onAddTag: (tag: string) => void;
@@ -62,27 +65,34 @@ const FormattedText = memo(({ text }: { text: string }) => {
 });
 FormattedText.displayName = "FormattedText";
 
-// 2. プレビューカード（OGP/Twitter風）を表示するコンポーネント
+// 2. OGP プレビューカードを表示するコンポーネント（バックエンドから実データを取得）
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+
+interface OgpData {
+  title?: string;
+  description?: string;
+  image?: string;
+  site_name?: string;
+}
+
 const LinkPreviewCard = memo(({ url }: { url: string }) => {
-  const isTwitter = useMemo(() => url.includes("twitter.com") || url.includes("x.com"), [url]);
+  const [ogp, setOgp] = useState<OgpData | null>(null);
 
-  const mockOgp = useMemo(() => {
-    let hostname = "";
-    try {
-      hostname = new URL(url).hostname;
-    } catch {
-      hostname = url;
-    }
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(`${API_BASE}/api/v1/ogp?url=${encodeURIComponent(url)}`, {
+      signal: controller.signal,
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: OgpData | null) => setOgp(data))
+      .catch(() => {}); // abort or fetch failure → カード非表示
+    return () => controller.abort();
+  }, [url]);
 
-    return {
-      title: isTwitter ? "X (旧Twitter) ユーザーの投稿" : "Webサイトタイトル",
-      siteName: isTwitter ? "X (formerly Twitter)" : hostname,
-      description: isTwitter
-        ? "これはポストの本文プレビューテキストです。リアクションやメディアが含まれる場合があります。"
-        : "リンク先のWebページの概要テキストがここに入ります。",
-      image: "https://picsum.photos/600/300?random=" + url.length,
-    };
-  }, [url, isTwitter]);
+  if (!ogp?.title) return null;
+
+  let hostname = "";
+  try { hostname = new URL(url).hostname; } catch {}
 
   return (
     <a
@@ -91,35 +101,39 @@ const LinkPreviewCard = memo(({ url }: { url: string }) => {
       rel="noopener noreferrer"
       className="mt-2 flex flex-col max-w-md bg-[#2b2d31] border-l-4 border-[#5865f2] rounded-r-md overflow-hidden hover:bg-[#313338] transition group decoration-0"
     >
-      <div className="p-3 text-xs space-y-1">
+      <div className="p-3 space-y-1">
         <span className="text-[10px] text-[#949ba4] font-semibold uppercase tracking-wider">
-          {mockOgp.siteName}
+          {ogp.site_name ?? hostname}
         </span>
         <h4 className="text-sm font-bold text-[#00a8fc] group-hover:underline line-clamp-1">
-          {mockOgp.title}
+          {ogp.title}
         </h4>
-        <p className="text-[#dbdee1] text-xs line-clamp-2 leading-relaxed">
-          {mockOgp.description}
-        </p>
+        {ogp.description && (
+          <p className="text-[#dbdee1] text-xs line-clamp-2 leading-relaxed">
+            {ogp.description}
+          </p>
+        )}
       </div>
-      <div className="w-full h-36 bg-[#1e1f22] overflow-hidden">
-        <img
-          src={mockOgp.image}
-          alt="Preview"
-          className="w-full h-full object-cover group-hover:scale-105 transition duration-200"
-        />
-      </div>
+      {ogp.image && (
+        <div className="w-full h-36 bg-[#1e1f22] overflow-hidden">
+          <img
+            src={ogp.image}
+            alt="Preview"
+            className="w-full h-full object-cover group-hover:scale-105 transition duration-200"
+          />
+        </div>
+      )}
     </a>
   );
 });
 LinkPreviewCard.displayName = "LinkPreviewCard";
 
-export default function MessageArea({
+const MessageArea = forwardRef<MessageAreaHandle, MessageAreaProps>(function MessageArea({
   currentChannel,
   filteredItems,
   searchQuery,
   setSearchQuery,
-  attachedImage,
+  attachedImages,
   onRemoveAttachedImage,
   setIsMenuOpen,
   isImageSidebarOpen,
@@ -130,7 +144,6 @@ export default function MessageArea({
   onFileChange,
   onPaste,
   onDeleteMessage,
-  messageRefs,
   onDrop,
   attachedTags,
   onAddTag,
@@ -138,8 +151,14 @@ export default function MessageArea({
   hasMore,
   onLoadMore,
   onEditMessage,
-}: MessageAreaProps) {
+}, ref) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  // メッセージ要素の ref（内部管理に変更）
+  const messageRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  // PictureBar クリック時のハイライト対象
+  const [highlightedId, setHighlightedId] = useState<number | null>(null);
+  // スクロール中フラグ（自動スクロールとの競合防止）
+  const scrollingToMessageRef = useRef(false);
 
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const previousScrollHeightRef = useRef<number>(0);
@@ -163,8 +182,35 @@ export default function MessageArea({
     setIsLoadingMore(false);
   }, [filteredItems]); // filteredItems が増えたタイミングだけ評価
 
+  // PictureBar クリック時: コンテナ基準で正確にスクロール → ハイライト表示
+  useImperativeHandle(ref, () => ({
+    scrollToMessage: (id: number) => {
+      const container = scrollRef.current;
+      const element = messageRefs.current[id];
+      if (!container || !element) return;
+
+      const containerRect = container.getBoundingClientRect();
+      const elementRect  = element.getBoundingClientRect();
+      const targetScrollTop =
+        container.scrollTop +
+        (elementRect.top - containerRect.top) -
+        container.clientHeight / 2 +
+        element.clientHeight / 2;
+
+      scrollingToMessageRef.current = true;
+      container.scrollTo({ top: Math.max(0, targetScrollTop), behavior: "smooth" });
+
+      setHighlightedId(id);
+      setTimeout(() => {
+        scrollingToMessageRef.current = false;
+        setHighlightedId(null);
+      }, 1500);
+    },
+  }));
+
+  // 新着メッセージ時の自動スクロール（PictureBar スクロール中は抑制）
   useEffect(() => {
-    if (!isLoadingMore && scrollRef.current) {
+    if (!isLoadingMore && !scrollingToMessageRef.current && scrollRef.current) {
       scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
     }
   }, [filteredItems.length]);
@@ -212,7 +258,7 @@ export default function MessageArea({
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!isDragging) setIsDragging(true);
+    if (attachedImages.length < 4 && !isDragging) setIsDragging(true);
   };
 
   const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
@@ -244,7 +290,7 @@ export default function MessageArea({
               </svg>
             </div>
             <p className="text-lg font-bold text-[#f2f3f5]">画像をドロップして添付</p>
-            <p className="text-xs text-[#949ba4]"># {currentChannel?.name} に画像を添付します</p>
+            <p className="text-xs text-[#949ba4]"># {currentChannel?.name} に画像を添付（あと{4 - attachedImages.length}枚）</p>
           </div>
         </div>
       )}
@@ -314,6 +360,7 @@ export default function MessageArea({
             onEditMessage={onEditMessage}
             onSelectTag={(tag) => setSearchQuery(`#${tag}`)}
             messageRef={(el) => { messageRefs.current[item.id] = el; }}
+            isHighlighted={highlightedId === item.id}
           />
         ))}
 
@@ -327,28 +374,27 @@ export default function MessageArea({
       {/* 入力フォームエリア */}
       <div className="p-2 md:p-3 bg-[#313338] shrink-0">
         <div className="flex flex-col bg-[#383a40] rounded-lg overflow-hidden relative">
-          {attachedImage && (
-            <div className="p-2 bg-[#2b2d31] border-b border-[#1f2023] flex items-center space-x-2 relative group">
-              <div className="relative w-12 h-12 rounded-md overflow-hidden border border-[#383a40] bg-[#1e1f22] shrink-0">
-                <img
-                  src={attachedImage.url}
-                  alt={attachedImage.name}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-[#dbdee1] truncate">{attachedImage.name}</p>
-                <p className="text-[10px] text-[#949ba4]">送信準備完了</p>
-              </div>
-              <button
-                onClick={onRemoveAttachedImage}
-                className="p-1 rounded-full bg-[#313338] hover:bg-red-500 text-[#b5bac1] hover:text-white transition cursor-pointer"
-                title="添付を取り消す"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+          {attachedImages.length > 0 && (
+            <div className="p-2 bg-[#2b2d31] border-b border-[#1f2023] flex items-center gap-2 flex-wrap">
+              {attachedImages.map((img, index) => (
+                <div key={index} className="relative">
+                  <div className="w-14 h-14 rounded-md overflow-hidden border border-[#383a40] bg-[#1e1f22] shrink-0">
+                    <img src={img.url} alt={img.name} className="w-full h-full object-cover" />
+                  </div>
+                  <button
+                    onClick={() => onRemoveAttachedImage(index)}
+                    className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#313338] border border-[#232428] hover:bg-red-500 text-[#b5bac1] hover:text-white transition cursor-pointer flex items-center justify-center"
+                    title="削除"
+                  >
+                    <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              ))}
+              {attachedImages.length < 4 && (
+                <p className="text-[10px] text-[#949ba4] self-end pb-1">あと{4 - attachedImages.length}枚</p>
+              )}
             </div>
           )}
 
@@ -411,7 +457,11 @@ export default function MessageArea({
 
           {/* メッセージ入力行 */}
           <div className="flex items-center px-3 py-2 space-x-2">
-            <label className="cursor-pointer text-[#b5bac1] hover:text-[#dbdee1] transition p-0.5">
+            <label className={`transition p-0.5 ${
+              attachedImages.length >= 4
+                ? "text-[#4e5058] cursor-not-allowed"
+                : "text-[#b5bac1] hover:text-[#dbdee1] cursor-pointer"
+            }`}>
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M19 11h-6V5a1 1 0 00-2 0v6H5a1 1 0 000 2h6v6a1 1 0 002 0v-6h6a1 1 0 000-2z" />
               </svg>
@@ -419,6 +469,8 @@ export default function MessageArea({
                 type="file"
                 className="hidden"
                 accept="image/*"
+                multiple
+                disabled={attachedImages.length >= 4}
                 onChange={onFileChange}
               />
             </label>
@@ -435,9 +487,9 @@ export default function MessageArea({
 
             <button
               onClick={onSend}
-              disabled={!inputText.trim() && !attachedImage}
+              disabled={!inputText.trim() && attachedImages.length === 0}
               className={`px-3 py-1 rounded-md font-medium text-xs transition cursor-pointer shrink-0 ${
-                inputText.trim() || attachedImage
+                inputText.trim() || attachedImages.length > 0
                   ? "bg-[#5865f2] text-white hover:bg-[#4752c4]"
                   : "bg-[#4e5058] text-[#949ba4] cursor-not-allowed"
               }`}
@@ -449,7 +501,9 @@ export default function MessageArea({
       </div>
     </div>
   );
-}
+});
+
+export default MessageArea;
 
 interface MessageRowProps {
   item: MessageItem;
@@ -457,9 +511,10 @@ interface MessageRowProps {
   onEditMessage?: (id: number, newContent: string) => void;
   onSelectTag?: (tag: string) => void;
   messageRef: (el: HTMLDivElement | null) => void;
+  isHighlighted: boolean;
 }
 
-const MessageRow = memo(({ item, onDeleteMessage, onEditMessage, onSelectTag, messageRef }: MessageRowProps) => {
+const MessageRow = memo(({ item, onDeleteMessage, onEditMessage, onSelectTag, messageRef, isHighlighted }: MessageRowProps) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(item.content);
 
@@ -494,7 +549,8 @@ const MessageRow = memo(({ item, onDeleteMessage, onEditMessage, onSelectTag, me
   return (
     <div
       ref={messageRef}
-      className="relative flex flex-col space-y-1 hover:bg-[#2e3035] px-2 py-1 transition w-full overflow-hidden group rounded"
+      className={`relative flex flex-col space-y-1 px-2 py-1 transition-colors duration-700 w-full overflow-hidden group rounded
+        ${isHighlighted ? "bg-[#5865f2]/15" : "hover:bg-[#2e3035]"}`}
     >
       <div className="flex items-baseline space-x-2">
         <span className="font-semibold text-white text-sm cursor-pointer hover:underline">
@@ -542,16 +598,26 @@ const MessageRow = memo(({ item, onDeleteMessage, onEditMessage, onSelectTag, me
             <span className="text-[10px] text-[#949ba4] ml-1.5 font-normal">(編集済)</span>
           )}
 
-          {item.type === "image" && item.url && (
-            <div className="mt-2 max-w-[95%] md:max-w-sm rounded-md overflow-hidden border border-[#2b2d31] bg-[#2b2d31] cursor-pointer">
-              <Image
-                src={item.url}
-                onClick={() => window.open(item.url, '_blank')}
-                alt={item.content}
-                className="w-full h-auto object-cover"
-              />
-            </div>
-          )}
+          {item.type === "image" && (() => {
+            const imageUrls = item.urls ?? (item.url ? [item.url] : []);
+            if (imageUrls.length === 0) return null;
+            return (
+              <div className={`mt-2 max-w-[95%] md:max-w-sm grid gap-1 ${imageUrls.length > 1 ? "grid-cols-2" : ""}`}>
+                {imageUrls.map((url, i) => (
+                  <div key={i} className="rounded-md overflow-hidden border border-[#2b2d31] bg-[#2b2d31]">
+                    <Image
+                      src={url}
+                      onClick={() => window.open(url, "_blank")}
+                      alt={item.content}
+                      width={1000}
+                      height={1000}
+                      className="w-full h-auto object-cover cursor-pointer"
+                    />
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
 
           {matchedUrl && <LinkPreviewCard url={matchedUrl} />}
 
