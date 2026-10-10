@@ -1,5 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, memo, forwardRef, useImperativeHandle } from "react";
-import { Channel, MessageItem } from "../logic/types";
+import { Channel, MessageItem, OgpData } from "../logic/types";
+import { fetchOgp } from "../logic/api-request";
 import Image from "next/image"
 
 export interface MessageAreaHandle {
@@ -66,25 +67,13 @@ const FormattedText = memo(({ text }: { text: string }) => {
 FormattedText.displayName = "FormattedText";
 
 // 2. OGP プレビューカードを表示するコンポーネント（バックエンドから実データを取得）
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
-
-interface OgpData {
-  title?: string;
-  description?: string;
-  image?: string;
-  site_name?: string;
-}
-
 const LinkPreviewCard = memo(({ url }: { url: string }) => {
   const [ogp, setOgp] = useState<OgpData | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${API_BASE}/api/v1/ogp?url=${encodeURIComponent(url)}`, {
-      signal: controller.signal,
-    })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: OgpData | null) => setOgp(data))
+    fetchOgp(url, controller.signal)
+      .then((data) => setOgp(data))
       .catch(() => {}); // abort or fetch failure → カード非表示
     return () => controller.abort();
   }, [url]);

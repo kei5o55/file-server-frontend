@@ -14,3 +14,10 @@ export interface MessageItem {
   tags?: string[]; //複数タグを保持する配列
   isEdited?:boolean;
 }
+
+export interface OgpData {
+  title?: string;
+  description?: string;
+  image?: string;
+  site_name?: string;
+}

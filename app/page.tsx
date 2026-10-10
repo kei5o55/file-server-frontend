@@ -7,8 +7,15 @@ import MessageArea, { type MessageAreaHandle } from "../components/messagearea";
 import PictureBar from "../components/picturebar";
 import WarnConfirm from "@/components/WarnConfrim";
 import { Channel, MessageItem } from "../logic/types";
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+import {
+  API_BASE_URL,
+  fetchChannels,
+  createChannel,
+  deleteChannel,
+  fetchMessages,
+  createMessage,
+  deleteMessage,
+} from "../logic/api-request";
 
 // 動的に WebSocket の URL を取得する関数
 const getWsUrl = () => {
@@ -51,9 +58,8 @@ export default function Home() {
 
   // 1. バックエンドからチャンネル一覧を取得
   useEffect(() => {
-    fetch(`${API_BASE_URL}/api/v1/channels`)
-      .then((res) => res.json())
-      .then((data: Channel[]) => {
+    fetchChannels()
+      .then((data) => {
         setChannels(data);
         if (data.length > 0) setActiveChannelId(data[0].id);
       })
@@ -65,21 +71,8 @@ export default function Home() {
     if (!activeChannelId) return;
 
     // メッセージの初期取得
-    fetch(`${API_BASE_URL}/api/v1/channels/${activeChannelId}/messages`)
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-        return res.json();
-      })
-      .then((data) => {
-        if (Array.isArray(data)) {
-          setItems(data);
-        } else if (data && Array.isArray(data.messages)) {
-          setItems(data.messages);
-        } else {
-          console.error("Received non-array data:", data);
-          setItems([]);
-        }
-      })
+    fetchMessages(activeChannelId)
+      .then((data) => setItems(data))
       .catch((err) => {
         console.error("Messages fetch error:", err);
         setItems([]);
@@ -167,6 +160,7 @@ export default function Home() {
 
   // 3. バックエンドへの送信処理 (FormData 使用)
   const handleSend = async () => {
+    if (!activeChannelId) return;
     if (!inputText.trim() && attachedImageFiles.length === 0) return;
 
     const formData = new FormData();
@@ -182,23 +176,11 @@ export default function Home() {
     });
 
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/api/v1/channels/${activeChannelId}/messages`,
-        {
-          method: "POST",
-          body: formData,
-        }
-      );
-
-      if (res.ok) {
-        setInputText("");
-        setAttachedImageFiles([]);
-        setAttachedImagePreviews([]);
-        setAttachedTags([]);
-      } else {
-        const errorData = await res.json();
-        console.error("送信エラーの詳細:", errorData);
-      }
+      await createMessage(activeChannelId, formData);
+      setInputText("");
+      setAttachedImageFiles([]);
+      setAttachedImagePreviews([]);
+      setAttachedTags([]);
     } catch (err) {
       console.error("Post error:", err);
     }
@@ -226,24 +208,24 @@ export default function Home() {
   const handleConfirmDelete = async () => {
     if (!deleteTarget) return;
 
-    if (deleteTarget.type === "message") {
-      setItems((prev) => prev.filter((item) => item.id !== deleteTarget.id));
+    if (deleteTarget.type === "message" && activeChannelId) {
+      const id = deleteTarget.id;
+      try {
+        await deleteMessage(activeChannelId, id);
+        setItems((prev) => prev.filter((item) => item.id !== id));
+      } catch (err) {
+        console.error("Message delete error:", err);
+      }
     }
 
     if (deleteTarget.type === "channel") {
       const id = deleteTarget.id;
       try {
-        const res = await fetch(`${API_BASE_URL}/api/v1/channels/${id}`, {
-          method: "DELETE",
-        });
-        if (res.ok) {
-          setChannels((prev) => prev.filter((c) => c.id !== id));
-          if (activeChannelId === id) {
-            const remaining = channels.filter((c) => c.id !== id);
-            setActiveChannelId(remaining.length > 0 ? remaining[0].id : null);
-          }
-        } else {
-          console.error("Channel delete failed:", await res.json());
+        await deleteChannel(id);
+        setChannels((prev) => prev.filter((c) => c.id !== id));
+        if (activeChannelId === id) {
+          const remaining = channels.filter((c) => c.id !== id);
+          setActiveChannelId(remaining.length > 0 ? remaining[0].id : null);
         }
       } catch (err) {
         console.error("Channel delete error:", err);
@@ -262,16 +244,9 @@ export default function Home() {
     if (!name?.trim()) return;
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/v1/channels`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim() }),
-      });
-      if (res.ok) {
-        const newChannel: Channel = await res.json();
-        setChannels((prev) => [...prev, newChannel]);
-        setActiveChannelId(newChannel.id);
-      }
+      const newChannel = await createChannel(name.trim());
+      setChannels((prev) => [...prev, newChannel]);
+      setActiveChannelId(newChannel.id);
     } catch (err) {
       console.error("Channel create error:", err);
     }

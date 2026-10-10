@@ -3,8 +3,7 @@
 import { useState, useEffect } from "react";
 import { createConsumer } from "@rails/actioncable";
 import { Channel, MessageItem } from "../../logic/types";
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+import { API_BASE_URL, fetchChannels, fetchMessages, createMessage } from "../../logic/api-request";
 
 // HTTP(S) の URL から WS(S) の WebSocket URL を自動生成
 // 例: http://localhost:3000 -> ws://localhost:3000/cable
@@ -27,9 +26,8 @@ export default function ChatPage() {
 
   // 1. チャンネル一覧の取得
   useEffect(() => {
-    fetch(`${API_BASE_URL}/api/v1/channels`)
-      .then((res) => res.json())
-      .then((data: Channel[]) => {
+    fetchChannels()
+      .then((data) => {
         setChannels(data);
         if (data.length > 0) setSelectedChannelId(data[0].id);
       })
@@ -40,9 +38,8 @@ export default function ChatPage() {
   useEffect(() => {
     if (!selectedChannelId) return;
 
-    fetch(`${API_BASE_URL}/api/v1/channels/${selectedChannelId}/messages`)
-      .then((res) => res.json())
-      .then((data: MessageItem[]) => setMessages(data))
+    fetchMessages(selectedChannelId)
+      .then((data) => setMessages(data))
       .catch((err) => console.error("Messages fetch error:", err));
   }, [selectedChannelId]);
 
@@ -100,32 +97,20 @@ export default function ChatPage() {
     });
 
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/api/v1/channels/${selectedChannelId}/messages`,
-        {
-          method: "POST",
-          body: formData,
-        }
-      );
+      // ※ サーバー側で MessagesChannel.broadcast_to を実行している場合、
+      // WebSocket 経由で received() が発火するため、ここでは State 追加を行わなくても自動更新されます。
+      // （重複防止ロジックが入っているため、ここで追加しても問題ありません）
+      const newMessage = await createMessage(selectedChannelId, formData);
+      setMessages((prev) => {
+        if (prev.some((msg) => msg.id === newMessage.id)) return prev;
+        return [...prev, newMessage];
+      });
 
-      if (res.ok) {
-        // ※ サーバー側で MessagesChannel.broadcast_to を実行している場合、
-        // WebSocket 経由で received() が発火するため、ここでは State 追加を行わなくても自動更新されます。
-        // （重複防止ロジックが入っているため、ここで追加しても問題ありません）
-        const newMessage: MessageItem = await res.json();
-        setMessages((prev) => {
-          if (prev.some((msg) => msg.id === newMessage.id)) return prev;
-          return [...prev, newMessage];
-        });
-
-        // フォームのリセット
-        setContent("");
-        setSelectedFile(null);
-        setTagInput("");
-        setMessageType("text");
-      } else {
-        console.error("Failed to post message");
-      }
+      // フォームのリセット
+      setContent("");
+      setSelectedFile(null);
+      setTagInput("");
+      setMessageType("text");
     } catch (err) {
       console.error("Post error:", err);
     }
